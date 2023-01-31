@@ -149,6 +149,38 @@ int accept_connection(int listen_soc) {
     return soc;
 }
 
+int handle_received_signal(struct request_ctx *ctx, int start, int end){
+    int rssi, txpower, path_loss, gains;
+
+    txpower = ctx->ctx->sta_array[end]->tx_power;
+    if (ctx->ctx->sta_array[start]->isap == 1)
+        txpower = ctx->ctx->sta_array[start]->tx_power;
+
+    path_loss = ctx->ctx->calc_path_loss(ctx->ctx->path_loss_param,
+            ctx->ctx->sta_array[end], ctx->ctx->sta_array[start]);
+    gains = (txpower + ctx->ctx->sta_array[start]->gain + ctx->ctx->sta_array[end]->gain);
+    rssi = gains - path_loss - ctx->ctx->noise_threshold;
+    return rssi;
+}
+
+int handle_overlapping_channel(struct request_ctx *ctx, int start){
+    int ovrl_chann, rssi, end;
+    double freq, freq2;
+
+    ovrl_chann = 0;
+    for (end = 0; end < ctx->ctx->num_stas; end++) {
+        if (ctx->ctx->sta_array[end]->isap == 1 && start != end){
+            freq2 = ctx->ctx->sta_array[end]->freq;
+            freq = ctx->ctx->sta_array[start]->freq;
+            rssi =  handle_received_signal(ctx, start, end) - abs(ctx->ctx->noise_threshold);
+            if (abs(freq - freq2) < 25.0 && rssi>ctx->ctx->noise_threshold){
+                ovrl_chann++;
+            }
+        }
+    }
+    return ovrl_chann;
+}
+
 int handle_snr_update_request(struct request_ctx *ctx, const snr_update_request *request) {
     snr_update_response response;
     response.request = *request;
@@ -200,6 +232,7 @@ int handle_position_update_request(struct request_ctx *ctx, const position_updat
     if (ctx->ctx->error_prob_matrix == NULL) {
     	struct station *sender = NULL;
     	struct station *station;
+    	int start, end, ovrl_chann;
 
         pthread_rwlock_wrlock(&snr_lock);
 
@@ -215,7 +248,18 @@ int handle_position_update_request(struct request_ctx *ctx, const position_updat
         w_logf(ctx->ctx, LOG_NOTICE, LOG_PREFIX "Performing Position update: for=" MAC_FMT ", position=%f,%f,%f\n",
 			   MAC_ARGS(request->sta_addr), request->posX, request->posY, request->posZ);
 
-		calc_signal(ctx);
+		// calc_signal(ctx);
+        for (start = 0; start < ctx->ctx->num_stas; start++) {
+            if(ctx->ctx->sta_array[start]->isap == 1){
+                ovrl_chann = handle_overlapping_channel(ctx, start);
+                if (sender)
+                    sender->ovrl_fac=ovrl_chann;
+            }
+            for (end = 0; end < ctx->ctx->num_stas; end++) {
+				if (start != end)
+                    ctx->ctx->snr_matrix[ctx->ctx->num_stas * start + end] = handle_received_signal(ctx, start, end);
+            }
+		}
 		response.update_result = WUPDATE_SUCCESS;
 
         pthread_rwlock_unlock(&snr_lock);
@@ -233,6 +277,7 @@ int handle_txpower_update_request(struct request_ctx *ctx, const txpower_update_
     if (ctx->ctx->error_prob_matrix == NULL) {
     	struct station *sender = NULL;
     	struct station *station;
+    	int start, end, ovrl_chann;;
 
         pthread_rwlock_wrlock(&snr_lock);
 
@@ -246,7 +291,18 @@ int handle_txpower_update_request(struct request_ctx *ctx, const txpower_update_
 		w_logf(ctx->ctx, LOG_NOTICE, LOG_PREFIX "Performing TxPower update: for=" MAC_FMT ", txpower=%d\n",
 			   MAC_ARGS(request->sta_addr), request->txpower_);
 
-		calc_signal(ctx);
+		// calc_signal(ctx);
+		for (start = 0; start < ctx->ctx->num_stas; start++) {
+            if(ctx->ctx->sta_array[start]->isap == 1){
+                ovrl_chann = handle_overlapping_channel(ctx, start);
+                if (sender)
+                    sender->ovrl_fac=ovrl_chann;
+            }
+            for (end = 0; end < ctx->ctx->num_stas; end++) {
+				if (start != end)
+                    ctx->ctx->snr_matrix[ctx->ctx->num_stas * start + end] = handle_received_signal(ctx, start, end);
+            }
+		}
 		response.update_result = WUPDATE_SUCCESS;
 
         pthread_rwlock_unlock(&snr_lock);
@@ -264,6 +320,7 @@ int handle_gaussian_random_update_request(struct request_ctx *ctx, const gaussia
     if (ctx->ctx->error_prob_matrix == NULL) {
     	struct station *sender = NULL;
     	struct station *station;
+    	int start, end, ovrl_chann;;
 
         pthread_rwlock_wrlock(&snr_lock);
 
@@ -277,7 +334,18 @@ int handle_gaussian_random_update_request(struct request_ctx *ctx, const gaussia
 		w_logf(ctx->ctx, LOG_NOTICE, LOG_PREFIX "Performing Gaussian Random update: for=" MAC_FMT ", gRandom=%d\n",
 			   MAC_ARGS(request->sta_addr), request->gaussian_random_);
 
-		calc_signal(ctx);
+		// calc_signal(ctx);
+		for (start = 0; start < ctx->ctx->num_stas; start++) {
+            if(ctx->ctx->sta_array[start]->isap == 1){
+                ovrl_chann = handle_overlapping_channel(ctx, start);
+                if (sender)
+                    sender->ovrl_fac=ovrl_chann;
+            }
+            for (end = 0; end < ctx->ctx->num_stas; end++) {
+				if (start != end)
+                    ctx->ctx->snr_matrix[ctx->ctx->num_stas * start + end] = handle_received_signal(ctx, start, end);
+            }
+		}
 		response.update_result = WUPDATE_SUCCESS;
 
         pthread_rwlock_unlock(&snr_lock);
@@ -295,6 +363,7 @@ int handle_gain_update_request(struct request_ctx *ctx, const gain_update_reques
     if (ctx->ctx->error_prob_matrix == NULL) {
     	struct station *sender = NULL;
     	struct station *station;
+    	int start, end, ovrl_chann;
 
         pthread_rwlock_wrlock(&snr_lock);
 
@@ -308,7 +377,18 @@ int handle_gain_update_request(struct request_ctx *ctx, const gain_update_reques
         w_logf(ctx->ctx, LOG_NOTICE, LOG_PREFIX "Performing Gain update: for=" MAC_FMT ", gain=%d\n",
 			   MAC_ARGS(request->sta_addr), request->gain_);
 
-        calc_signal(ctx);
+        // calc_signal(ctx);
+		for (start = 0; start < ctx->ctx->num_stas; start++) {
+            if(ctx->ctx->sta_array[start]->isap == 1){
+                ovrl_chann = handle_overlapping_channel(ctx, start);
+                if (sender)
+                    sender->ovrl_fac=ovrl_chann;
+            }
+            for (end = 0; end < ctx->ctx->num_stas; end++) {
+				if (start != end)
+                    ctx->ctx->snr_matrix[ctx->ctx->num_stas * start + end] = handle_received_signal(ctx, start, end);
+            }
+		}
 		response.update_result = WUPDATE_SUCCESS;
 
         pthread_rwlock_unlock(&snr_lock);
