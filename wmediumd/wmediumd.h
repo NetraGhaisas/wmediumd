@@ -105,6 +105,7 @@ enum {
 #define HEIGHT_DEFAULT 1
 #define AP_DEFAULT 2
 #define MEDIUM_ID_DEFAULT 0
+#define CHANNEL_FREQUENCY_DEFAULT 0
 
 #include <stdint.h>
 #include <stdbool.h>
