@@ -577,6 +577,7 @@ int load_config(struct wmediumd *ctx, const char *file, const char *per_file, bo
 	const config_setting_t *enable_interference;
 	const config_setting_t *fading_coefficient, *noise_threshold, *default_prob;
 	const config_setting_t *mediums, *medium_data,*interface_data, *medium_detection;
+	const config_setting_t *frequencies;
 	int count_ids, count_mediums, count_interfaces, station_id, i, j;
 	int start, end, snr;
 	struct station *station;
@@ -649,6 +650,7 @@ int load_config(struct wmediumd *ctx, const char *file, const char *per_file, bo
 		station->gRandom = GAUSS_RANDOM_DEFAULT;
 		station->isap = AP_DEFAULT;
 		station->medium_id = MEDIUM_ID_DEFAULT;
+		station->freq = CHANNEL_FREQUENCY_DEFAULT;
 		station->ovrl_fac = 0;
 		station_init_queues(station);
 		list_add_tail(&station->list, &ctx->stations);
@@ -747,6 +749,19 @@ int load_config(struct wmediumd *ctx, const char *file, const char *per_file, bo
     }else{
         ctx->enable_medium_detection = ENABLE_MEDIUM_DETECTION;
     }
+
+	// add channel freq logic here
+	frequencies = config_lookup(cf, "ifaces.frequencies");
+	if(frequencies){
+		if(config_setting_length(frequencies) == ctx->num_stas){
+			for(i = 0; i < ctx->num_stas; i++){
+				ctx->sta_array[i]->freq = config_setting_get_float(config_setting_get_elem(frequencies,i));
+				w_logf(ctx,LOG_NOTICE,"Frequency of station %d is %lf\n",i,ctx->sta_array[i]->freq);
+			}
+		} else {
+			w_logf(ctx,LOG_ERR,"frequencies length does not match number of stations");
+		}
+	}
 
 	if (per_file && error_probs) {
 		w_flogf(ctx, LOG_ERR, stderr,
