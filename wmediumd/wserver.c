@@ -176,6 +176,7 @@ int handle_overlapping_channel(struct request_ctx *ctx, int start){
             if (abs(freq - freq2) < 25.0 && rssi>ctx->ctx->noise_threshold){
                 ovrl_chann++;
             }
+            w_logf(ctx->ctx, LOG_DEBUG, LOG_PREFIX "Overlapping channels with freq1:%lf, freq2:%lf \n",freq,freq2);
         }
     }
     return ovrl_chann;
@@ -612,6 +613,49 @@ int handle_medium_update_request(struct request_ctx *ctx, const medium_update_re
     return ret;
 }
 
+int handle_channel_frequency_update_request(struct request_ctx *ctx, channel_frequency_update_request *request){
+    channel_frequency_update_response response;
+    response.request = *request;
+    struct station *sender = NULL;
+    struct station *station;
+    int start, end, ovrl_chann;
+
+    list_for_each_entry(station, &ctx->ctx->stations, list) {
+        if (memcmp(&request->sta_addr, station->addr, ETH_ALEN) == 0) {
+            sender = station;
+        }
+    }
+    
+    w_logf(ctx->ctx, LOG_NOTICE, LOG_PREFIX "Performing channel frequency update: for=" MAC_FMT " to %f\n",
+           MAC_ARGS(request->sta_addr), request->channel_frequency_);
+    
+    pthread_rwlock_wrlock(&snr_lock);
+
+    if(sender!=NULL){
+        sender->freq = request->channel_frequency_;
+        response.update_result = WUPDATE_SUCCESS;
+    }else{
+        response.update_result = WUPDATE_INTF_NOTFOUND;
+    }
+    
+    for (start = 0; start < ctx->ctx->num_stas; start++) {
+            if(ctx->ctx->sta_array[start]->isap == 1){
+                ovrl_chann = handle_overlapping_channel(ctx, start);
+                if (sender)
+                    sender->ovrl_fac=ovrl_chann;
+            }
+            for (end = 0; end < ctx->ctx->num_stas; end++) {
+				if (start != end)
+                    ctx->ctx->snr_matrix[ctx->ctx->num_stas * start + end] = handle_received_signal(ctx, start, end);
+            }
+		}
+
+    pthread_rwlock_unlock(&snr_lock);
+
+    int ret = wserver_send_msg(ctx->sock_fd, &response, channel_frequency_update_response);
+    return ret;
+}
+
 int parse_recv_msg_rest_error(struct wmediumd *ctx, int value) {
     if (value > 0) {
         return value;
@@ -709,6 +753,13 @@ int receive_handle_request(struct request_ctx *ctx) {
             return parse_recv_msg_rest_error(ctx->ctx, ret);
         } else {
             return handle_medium_update_request(ctx, &request);
+        }
+    } else if (recv_type == WSERVER_CHANNEL_FREQUENCY_UPDATE_REQUEST_TYPE) {
+        channel_frequency_update_request request;
+        if ((ret = wserver_recv_msg(ctx->sock_fd, &request, channel_frequency_update_request))) {
+            return parse_recv_msg_rest_error(ctx->ctx, ret);
+        } else {
+            return handle_channel_frequency_update_request(ctx, &request);
         }
     }
     else {

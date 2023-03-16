@@ -127,6 +127,14 @@ int send_medium_update_response(int sock, const medium_update_response *elem) {
     align_send_msg(sock, elem, medium_update_response , WSERVER_MEDIUM_UPDATE_RESPONSE_TYPE)
 }
 
+int send_channel_frequency_update_request(int sock, const channel_frequency_update_request *elem) {
+    align_send_msg(sock, elem, channel_frequency_update_request , WSERVER_CHANNEL_FREQUENCY_UPDATE_REQUEST_TYPE)
+}
+
+int send_channel_frequency_update_response(int sock, const channel_frequency_update_response *elem) {
+    align_send_msg(sock, elem, channel_frequency_update_response , WSERVER_CHANNEL_FREQUENCY_UPDATE_RESPONSE_TYPE)
+}
+
 int recv_snr_update_request(int sock, snr_update_request *elem) {
     align_recv_msg(sock, elem, snr_update_request, WSERVER_SNR_UPDATE_REQUEST_TYPE)
 }
@@ -215,6 +223,14 @@ int recv_medium_update_response(int sock, medium_update_response *elem) {
     align_recv_msg(sock, elem, medium_update_response , WSERVER_MEDIUM_UPDATE_RESPONSE_TYPE)
 }
 
+int recv_channel_frequency_update_request(int sock, channel_frequency_update_request *elem) {
+    align_recv_msg(sock, elem, channel_frequency_update_request , WSERVER_CHANNEL_FREQUENCY_UPDATE_REQUEST_TYPE)
+}
+
+int recv_channel_frequency_update_response(int sock, channel_frequency_update_response *elem) {
+    align_recv_msg(sock, elem, channel_frequency_update_response , WSERVER_CHANNEL_FREQUENCY_UPDATE_RESPONSE_TYPE)
+}
+
 int wserver_recv_msg_base(int sock_fd, wserver_msg *base, int *recv_type) {
     int ret = recvfull(sock_fd, base, sizeof(wserver_msg), 0, 0);
     if (ret) {
@@ -266,6 +282,10 @@ ssize_t get_msg_size_by_type(int type) {
             return sizeof(medium_update_request);
         case WSERVER_MEDIUM_UPDATE_RESPONSE_TYPE:
             return sizeof(medium_update_response);
+        case WSERVER_CHANNEL_FREQUENCY_UPDATE_REQUEST_TYPE:
+            return sizeof(channel_frequency_update_request);
+        case WSERVER_CHANNEL_FREQUENCY_UPDATE_RESPONSE_TYPE:
+            return sizeof(channel_frequency_update_response);
         default:
             return -1;
     }

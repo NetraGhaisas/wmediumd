@@ -195,6 +195,16 @@ void hton_medium_update_response(medium_update_response *elem) {
     hton_medium_update_request(&elem->request);
 }
 
+void hton_channel_frequency_update_request(channel_frequency_update_request *elem) {
+    hton_base(&elem->base);
+    htoni_wrapper((int32_t*)&elem->channel_frequency_);
+}
+
+void hton_channel_frequency_update_response(channel_frequency_update_response *elem) {
+    hton_base(&elem->base);
+    hton_medium_update_request(&elem->request);
+}
+
 void ntoh_base(wserver_msg *elem) {
     UNUSED(elem);
 }
@@ -309,4 +319,14 @@ void ntoh_medium_update_request(medium_update_request *elem) {
 void ntoh_medium_update_response(medium_update_response *elem) {
     ntoh_base(&elem->base);
     ntoh_medium_update_request(&elem->request);
+}
+
+void ntoh_channel_frequency_update_request(channel_frequency_update_request *elem) {
+    ntoh_base(&elem->base);
+    ntohi_wrapper((int32_t*)&elem->channel_frequency_);
+}
+
+void ntoh_channel_frequency_update_response(channel_frequency_update_response *elem) {
+    ntoh_base(&elem->base);
+    ntoh_channel_frequency_update_request(&elem->request);
 }

@@ -111,4 +111,13 @@ int handle_delete_by_mac_request(struct request_ctx *ctx, station_del_by_mac_req
  */
 int handle_add_request(struct request_ctx *ctx, station_add_request *request);
 
+
+/**
+ * Handle a channel_frequency_update_request and pass it to wmediumd
+ * @param ctx The request_ctx context
+ * @param request The received request
+ */
+int handle_channel_frequency_update_request(struct request_ctx *ctx, channel_frequency_update_request *request);
+
+
 #endif //WMEDIUMD_SERVER_H
