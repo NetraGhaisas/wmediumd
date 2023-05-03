@@ -279,6 +279,9 @@ static int get_signal_offset_by_interference(struct wmediumd *ctx, int src_idx,
 	if (intf_power <= 1.0)
 		return 0;
 
+	w_logf(ctx, LOG_DEBUG, "Signal interference: %d",(int)(milliwatt_to_dBm(intf_power) + 0.5));
+			
+
 	return (int)(milliwatt_to_dBm(intf_power) + 0.5);
 }
 
@@ -386,13 +389,18 @@ void queue_frame(struct wmediumd *ctx, struct station *station,
 			snr = ctx->get_link_snr(ctx, station, deststa) -
 				get_signal_offset_by_interference(ctx,
 					station->index, deststa->index);
+			w_logf(ctx, LOG_DEBUG, "SNR before fading signal %d, interference: %d",ctx->get_link_snr(ctx, station, deststa),get_signal_offset_by_interference(ctx,
+					station->index, deststa->index));
 			snr += ctx->get_fading_signal(ctx);
+			w_logf(ctx, LOG_DEBUG, "SNR after fading signal %d",snr);
+			
 		}
 	}
 	frame->signal = snr + NOISE_LEVEL;
 
 	noack = frame_is_mgmt(frame) || is_multicast_ether_addr(dest);
 	double choice = -3.14;
+	// double choice = drand48();
 
 	if (use_fixed_random_value(ctx))
 		choice = drand48();
@@ -429,6 +437,7 @@ void queue_frame(struct wmediumd *ctx, struct station *station,
 				if (cw > queue->cw_max)
 					cw = queue->cw_max;
 			}
+// here
 			if (!use_fixed_random_value(ctx))
 				choice = drand48();
 			if (choice > error_prob) {
@@ -457,15 +466,18 @@ void queue_frame(struct wmediumd *ctx, struct station *station,
         if (station->medium_id == tmpsta->medium_id) {
             w_logf(ctx, LOG_DEBUG, "Sta " MAC_FMT " medium is also #%d\n", MAC_ARGS(tmpsta->addr),
                    tmpsta->medium_id);
-            for (i = 0; i <= ac; i++) {
-                tail = list_last_entry_or_null(&tmpsta->queues[i].frames,
-                                               struct frame, list);
-                if (tail && timespec_before(&target, &tail->expires))
-                    target = tail->expires;
-            }
         } else {
             w_logf(ctx, LOG_DEBUG, "Sta " MAC_FMT " medium is not #%d, it is #%d\n", MAC_ARGS(tmpsta->addr),
                    station->medium_id, tmpsta->medium_id);
+        }
+		for (i = 0; i <= ac; i++) {
+            tail = list_last_entry_or_null(&tmpsta->queues[i].frames,
+                                               struct frame, list);
+			int sd_power = (tmpsta->freq == station->freq) ? ctx->get_link_snr(ctx,tmpsta,station)-get_signal_offset_by_interference(ctx,tmpsta->index,station->index)
+                                     + ctx->noise_threshold
+                               : ctx->noise_threshold;
+            if (tail && timespec_before(&target, &tail->expires) && sd_power > CCA_THRESHOLD)
+                target = tail->expires;
         }
     }
 
@@ -584,12 +596,46 @@ void deliver_frame(struct wmediumd *ctx, struct frame *frame)
 	struct station *station;
 	u8 *dest = hdr->addr1;
 	u8 *src = frame->sender->addr;
+	int snr = 0, signal;
 
 	if (frame->flags & HWSIM_TX_STAT_ACK) {
 		/* rx the frame on the dest interface */
 		list_for_each_entry(station, &ctx->stations, list) {
 			if (memcmp(src, station->addr, ETH_ALEN) == 0)
 				continue;
+// this patch works!!! ref - https://github.com/masap/wmediumd
+		// 			if (memcmp(dest, station->addr, ETH_ALEN) == 0) {
+		// 	signal = frame->signal;
+		// } else {
+		// 	snr = ctx->get_link_snr(ctx, frame->sender, station);
+		// 	snr -= get_signal_offset_by_interference(ctx,
+		// 		frame->sender->index, station->index);
+		// 	snr += ctx->get_fading_signal(ctx);
+		// 	signal = snr + NOISE_LEVEL;
+		// }
+
+		// if (signal < CCA_THRESHOLD) {
+		// 	if (!ctx->intf)
+		// 		continue;
+
+		// 	int __index = ctx->num_stas * frame->sender->index +
+		// 		station->index;
+
+		// 	/*
+		// 	 * The interference model assumes signals which strength
+		// 	 * is under CCA threshold are interference signal.
+		// 	 * The model accumulates the durations of such signals.
+		// 	 * The model assumes (accumulated duration / time slot)
+		// 	 * is probability of occurence of interference.
+		// 	 * When interference occurs, the model reduces the
+		// 	 * signal strength from Tx signal strength.
+		// 	 */
+		// 	ctx->intf[__index].duration += frame->duration;
+		// 	// use only max value
+		// 	if (ctx->intf[__index].signal < signal)
+		// 		ctx->intf[__index].signal = signal;
+		// 	continue;
+		// }
 
 			int rate_idx;
 			if (is_multicast_ether_addr(dest)) {
