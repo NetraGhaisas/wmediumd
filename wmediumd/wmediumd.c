@@ -400,7 +400,6 @@ void queue_frame(struct wmediumd *ctx, struct station *station,
 
 	noack = frame_is_mgmt(frame) || is_multicast_ether_addr(dest);
 	double choice = -3.14;
-	// double choice = drand48();
 
 	if (use_fixed_random_value(ctx))
 		choice = drand48();
@@ -437,7 +436,7 @@ void queue_frame(struct wmediumd *ctx, struct station *station,
 				if (cw > queue->cw_max)
 					cw = queue->cw_max;
 			}
-// here
+
 			if (!use_fixed_random_value(ctx))
 				choice = drand48();
 			if (choice > error_prob) {
@@ -603,39 +602,6 @@ void deliver_frame(struct wmediumd *ctx, struct frame *frame)
 		list_for_each_entry(station, &ctx->stations, list) {
 			if (memcmp(src, station->addr, ETH_ALEN) == 0)
 				continue;
-// this patch works!!! ref - https://github.com/masap/wmediumd
-		// 			if (memcmp(dest, station->addr, ETH_ALEN) == 0) {
-		// 	signal = frame->signal;
-		// } else {
-		// 	snr = ctx->get_link_snr(ctx, frame->sender, station);
-		// 	snr -= get_signal_offset_by_interference(ctx,
-		// 		frame->sender->index, station->index);
-		// 	snr += ctx->get_fading_signal(ctx);
-		// 	signal = snr + NOISE_LEVEL;
-		// }
-
-		// if (signal < CCA_THRESHOLD) {
-		// 	if (!ctx->intf)
-		// 		continue;
-
-		// 	int __index = ctx->num_stas * frame->sender->index +
-		// 		station->index;
-
-		// 	/*
-		// 	 * The interference model assumes signals which strength
-		// 	 * is under CCA threshold are interference signal.
-		// 	 * The model accumulates the durations of such signals.
-		// 	 * The model assumes (accumulated duration / time slot)
-		// 	 * is probability of occurence of interference.
-		// 	 * When interference occurs, the model reduces the
-		// 	 * signal strength from Tx signal strength.
-		// 	 */
-		// 	ctx->intf[__index].duration += frame->duration;
-		// 	// use only max value
-		// 	if (ctx->intf[__index].signal < signal)
-		// 		ctx->intf[__index].signal = signal;
-		// 	continue;
-		// }
 
 			int rate_idx;
 			if (is_multicast_ether_addr(dest)) {
